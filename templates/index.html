@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧮 CaLimit Pro - Kalkulator Limit</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: {{ font }};
+            background-color: {{ colors.bg }};
+            color: {{ colors.text }};
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 30px;
+            background: linear-gradient(135deg, {{ colors.accent }}, {{ colors.theory }});
+            border-radius: 0 0 25px 25px;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .card {
+            background: {{ colors.card }};
+            padding: 25px;
+            border-radius: 20px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .usage-guide {
+            background: {{ colors.bg }};
+            border: 2px solid {{ colors.accent }};
+        }
+        
+        .examples-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .example-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .example-card:hover {
+            transform: scale(1.02);
+        }
+        
+        .input-group {
+            display: grid;
+            gap: 15px;
+        }
+        
+        textarea, input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid {{ colors.accent }}20;
+            border-radius: 10px;
+            font-family: {{ font }};
+            font-size: 16px;
+            background: white;
+        }
+        
+        textarea:focus, input:focus, select:focus {
+            outline: none;
+            border-color: {{ colors.accent }};
+        }
+        
+        .btn {
+            background: {{ colors.success }};
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-family: {{ font }};
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: {{ colors.button_hover }};
+        }
+        
+        .btn-danger {
+            background: {{ colors.error }};
+        }
+        
+        .result-section {
+            border-left: 5px solid {{ colors.accent }};
+        }
+        
+        .continuity-steps {
+            background: #4ECDC420;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        
+        .plot-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            color: white;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        
+        .toast.success { background: {{ colors.success }}; }
+        .toast.error { background: {{ colors.error }}; }
+        .toast.warning { background: {{ colors.warning }}; color: {{ colors.text }}; }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid {{ colors.accent }};
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .tag {
+            background: rgba(255,255,255,0.3);
+            padding: 5px 15px;
+            border-radius: 20px;
+            color: white;
+            font-size: 0.9em;
+            display: inline-block;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🧮 CaLimit Pro</h1>
+        <p>Kalkulator Limit Intelligent + Visualisasi 2D & 3D</p>
+        <div style="margin-top: 15px;">
+            <span class="tag">Step-by-Step</span>
+            <span class="tag">Visualisasi 2D</span>
+            <span class="tag">Visualisasi 3D</span>
+            <span class="tag">Analisis Kontinuitas</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Usage Guide -->
+        <div class="card usage-guide">
+            <h3>📖 Panduan Penggunaan</h3>
+            <p>Gunakan format: <b>sin(x)/x</b>, <b>√(x-2)</b>, <b>(x²-1)/(x-1)</b>, <b>x^2 + y^2</b> (3D)</p>
+        </div>
+
+        <!-- Interactive Examples -->
+        <div class="card">
+            <h3>🚀 Contoh Cepat</h3>
+            <p>Klik contoh untuk langsung mencoba:</p>
+            <div class="examples-grid">
+                {% for example in examples %}
+                <div class="example-card" onclick="loadExample({{ loop.index0 }})">
+                    <h4>{{ example.name }}</h4>
+                    <p>f(x) = {{ example.expr }}</p>
+                    <small>x→{{ example.xval }}</small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Input Form -->
+        <div class="card">
+            <h3>🧩 Input Fungsi & Parameter</h3>
+            <form id="limitForm" class="input-group">
+                <div>
+                    <label>Fungsi pertama f(x) 🎯</label>
+                    <textarea name="expr1" placeholder="Contoh: sin(x)/x, √(x-2), (x²-1)/(x-1), x^2 + y^2 (3D)" required rows="2"></textarea>
+                </div>
+                
+                <div>
+                    <label>Fungsi kedua g(x) (opsional)</label>
+                    <textarea name="expr2" placeholder="Kosongkan jika hanya satu fungsi" rows="2"></textarea>
+                </div>
+                
+                <div>
+                    <label>Nilai x mendekati 🎯</label>
+                    <input type="text" name="xval" placeholder="Contoh: 0, 1, 0+, 2-, infinity" required>
+                </div>
+                
+                <div>
+                    <label>Arah pendekatan:</label>
+                    <select name="direction">
+                        <option value="both">🔄 Kedua arah</option>
+                        <option value="left">⬅️ Dari kiri</option>
+                        <option value="right">➡️ Dari kanan</option>
+                    </select>
+                </div>
+                
+                <button type="submit" class="btn">🧮 Hitung Limit</button>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const examples = {{ examples|tojson }};
+        
+        function loadExample(index) {
+            const example = examples[index];
+            document.querySelector('textarea[name="expr1"]').value = example.expr;
+            document.querySelector('input[name="xval"]').value = example.xval;
+            showToast(`✅ Loaded: ${example.name}`, 'success');
+        }
+        
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+        
+        function showLoading() {
+            document.getElementById('results').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <h3>🔄 Menghitung Limit & Membuat Visualisasi...</h3>
+                </div>
+            `;
+        }
+        
+        function displayResults(data) {
+            let html = `
+                <div class="card">
+                    <h2 style="text-align: center; color: {{ colors.text }};">📊 HASIL PERHITUNGAN</h2>
+                </div>
+            `;
+            
+            // Function 1 results
+            if (data.function1) {
+                const f1 = data.function1;
+                html += `
+                    <div class="card result-section">
+                        <h3 style="color: {{ colors.accent }};">Fungsi 1: f(x) = ${f1.display_expression}</h3>
+                        <p><b>Hasil limit:</b> <span style="color: {{ colors.accent }}; font-size: 1.2em;">${f1.limit}</span></p>
+                        
+                        <div class="continuity-steps">
+                            ${f1.continuity.steps.map(step => `<p style="margin: 5px 0;">${step}</p>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Function 2 results
+            if (data.function2) {
+                const f2 = data.function2;
+                html += `
+                    <div class="card result-section">
+                        <h3 style="color: {{ colors.secondary }};">Fungsi 2: g(x) = ${f2.display_expression}</h3>
+                        <p><b>Hasil limit:</b> <span style="color: {{ colors.secondary }}; font-size: 1.2em;">${f2.limit}</span></p>
+                        
+                        <div class="continuity-steps">
+                            ${f2.continuity.steps.map(step => `<p style="margin: 5px 0;">${step}</p>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // 2D Plot
+            if (data.plots && data.plots.plot_2d) {
+                html += `
+                    <div class="card">
+                        <h3 style="color: {{ colors.accent }};">📈 Visualisasi 2D</h3>
+                        <div class="plot-container">${data.plots.plot_2d}</div>
+                    </div>
+                `;
+            }
+            
+            // 3D Plot
+            if (data.plots && data.plots.plot_3d) {
+                html += `
+                    <div class="card">
+                        <h3 style="color: {{ colors.threed }};">🎨 Visualisasi 3D</h3>
+                        <div class="plot-container">${data.plots.plot_3d}</div>
+                    </div>
+                `;
+            }
+            
+            // Action buttons
+            html += `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
+                    <button onclick="location.reload()" class="btn">🔄 Hitung Lagi</button>
+                </div>
+            `;
+            
+            document.getElementById('results').innerHTML = html;
+        }
+        
+        document.getElementById('limitForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = {
+                expr1: formData.get('expr1'),
+                expr2: formData.get('expr2'),
+                xval: formData.get('xval'),
+                direction: formData.get('direction')
+            };
+            
+            showLoading();
+            
+            try {
+                const response = await fetch('/calculate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.error) {
+                    showToast(`❌ ${result.error}`, 'error');
+                    document.getElementById('results').innerHTML = `
+                        <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
+                    `;
+                } else {
+                    showToast('✅ Perhitungan selesai!', 'success');
+                    displayResults(result);
+                }
+            } catch (error) {
+                showToast('❌ Error koneksi', 'error');
+                document.getElementById('results').innerHTML = `
+                    <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
+                `;
+            }
+        });
+    </script>
+</body>
+  </html>
