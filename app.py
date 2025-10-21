@@ -284,8 +284,127 @@ class PlottingEngine:
                     text="📈 Visualisasi 2D - Grafik Fungsi",
                     x=0.5,
                     font=dict(size=20, color=COLORS['text'])
+# ========== MODULE 4: PLOTTING ENGINE ==========
+class PlottingEngine:
+    @staticmethod
+    def safe_lambdify(variables, expr):
+        """Lambdify yang lebih aman dengan multiple fallback"""
+        try:
+            return sp.lambdify(variables, expr, modules=['numpy'])
+        except:
+            try:
+                return sp.lambdify(variables, expr, modules=['math'])
+            except:
+                try:
+                    return sp.lambdify(variables, expr)
+                except:
+                    return None
+
+    @staticmethod
+    def create_2d_plot(expr_str1, expr_str2, x_val, direction):
+        if x_val in ['oo', '-oo', '∞', '-∞']:
+            return PlottingEngine._no_plot_message("Visualisasi tidak tersedia untuk limit di tak hingga")
+        
+        try:
+            x_val_float = float(x_val)
+            x = sp.symbols('x')
+            
+            print(f"🔍 DEBUG 2D: expr1='{expr_str1}', expr2='{expr_str2}', x_val={x_val_float}")
+            
+            # RANGE OPTIMAL 
+            if x_val_float == 0:
+                left_range, right_range = -3, 3
+            else:
+                range_size = max(2, abs(x_val_float) * 0.8)
+                left_range = x_val_float - range_size
+                right_range = x_val_float + range_size
+            
+            # BUAT TITIK 
+            X = np.linspace(left_range, right_range, 400)
+            
+            fig = go.Figure()
+            
+            colors = ['#FF6B6B', '#4ECDC4']
+            expressions = [(expr_str1, 'f(x)'), (expr_str2, 'g(x)')]
+            
+            valid_plots = 0
+            
+            for i, (expr_str, label) in enumerate(expressions):
+                if expr_str and expr_str.strip():
+                    try:
+                        print(f"🎯 Plotting {label}: {expr_str}")
+                        
+                        parse_result = ExpressionParser.parse(expr_str)
+                        if "error" in parse_result:
+                            print(f"❌ Parse error: {parse_result['error']}")
+                            continue
+                            
+                        parsed_expr = parse_result["success"]
+                        expr_sympy = sp.sympify(parsed_expr)
+                        
+                        # FUNGSI LAMBDA
+                        f = PlottingEngine.safe_lambdify(x, expr_sympy)
+                        if f is None:
+                            print(f"❌ Gagal membuat fungsi untuk {expr_str}")
+                            continue
+                        
+                        Y = []
+                        valid_points = 0
+                        
+                        for x_point in X:
+                            try:
+                                y_val = f(x_point)
+                                if (y_val is not None and 
+                                    np.isfinite(y_val) and 
+                                    not isinstance(y_val, (complex, sp.Basic))):
+                                    Y.append(float(y_val))
+                                    valid_points += 1
+                                else:
+                                    Y.append(np.nan)
+                            except Exception as e:
+                                Y.append(np.nan)
+                        
+                        print(f"📊 {label}: {valid_points}/{len(X)} points valid")
+                        
+                        Y = np.array(Y)
+                        
+                        # PLOT JIKA ADA CUKUP TITIK
+                        if valid_points > 50:
+                            display_expr = ExpressionFormatter.format_display(expr_str)
+                            
+                            fig.add_trace(go.Scatter(
+                                x=X, y=Y, mode='lines', 
+                                line=dict(color=colors[i], width=3),
+                                name=f'{label} = {display_expr}',
+                                connectgaps=False
+                            ))
+                            valid_plots += 1
+                            print(f"✅ {label} BERHASIL di-plot")
+                        else:
+                            print(f"❌ {label}: Gagal - hanya {valid_points} titik valid")
+                            
+                    except Exception as e:
+                        print(f"💥 Error plotting {expr_str}: {str(e)}")
+                        continue
+            
+            if valid_plots == 0:
+                return PlottingEngine._no_plot_message("Tidak ada fungsi yang berhasil di-plot")
+            
+            # GARIS LIMIT
+            fig.add_vline(x=x_val_float, line_dash="dash", line_color="red", 
+                         opacity=0.7, annotation_text=f"x → {x_val}")
+            
+            # LAYOUT
+            fig.update_layout(
+                plot_bgcolor='white',
+                paper_bgcolor='white',
+                font=dict(color=COLORS['text'], family=FONT, size=14),
+                title=dict(
+                    text="📈 Visualisasi 2D - Grafik Fungsi",
+                    x=0.5,
+                    font=dict(size=20, color=COLORS['text'])
                 ),
-                height=550,
+                height=500,
                 showlegend=True,
                 xaxis_title="x",
                 yaxis_title="f(x)",
@@ -297,18 +416,112 @@ class PlottingEngine:
                 yaxis=dict(
                     gridcolor='lightgray', 
                     zerolinecolor='lightgray'
-                ),
-                legend=dict(
-                    bgcolor='rgba(255,255,255,0.8)',
-                    bordercolor='gray',
-                    borderwidth=1
                 )
             )
             
-            return pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
+            plot_html = pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
+            print("🎉 2D Plot BERHASIL dibuat!")
+            return plot_html
             
         except Exception as e:
+            print(f"💥 Error besar di 2D plot: {str(e)}")
             return PlottingEngine._error_plot_message(f"Error membuat plot 2D: {str(e)}")
+
+    @staticmethod
+    def create_3d_plot(expr_str):
+        try:
+            if not expr_str or not expr_str.strip():
+                return PlottingEngine._no_plot_message("Ekspresi kosong")
+                
+            x, y = sp.symbols('x y')
+            
+            print(f"🔍 DEBUG 3D: expr='{expr_str}'")
+            
+            parse_result = ExpressionParser.parse(expr_str)
+            if "error" in parse_result:
+                return PlottingEngine._no_plot_message(f"Ekspresi tidak valid: {parse_result['error']}")
+            
+            parsed_expr = parse_result["success"]
+            expr = sp.sympify(parsed_expr)
+            
+            # CEK VARIABEL Y - HANYA untuk fungsi yang PASTI 3D
+            free_symbols = {str(s) for s in expr.free_symbols}
+            if 'y' not in free_symbols:
+                # Jika tidak ada y, buat plot 3D dari fungsi 2D dengan y=0
+                print("⚠️ Fungsi 2D, buat plot 3D dengan y=0")
+                # return PlottingEngine._no_plot_message("Fungsi tidak mengandung variabel y")
+            
+            # GRID 3D
+            X_vals = np.linspace(-3, 3, 40)
+            Y_vals = np.linspace(-3, 3, 40)
+            X, Y = np.meshgrid(X_vals, Y_vals)
+            
+            # EVALUASI FUNGSI
+            f = PlottingEngine.safe_lambdify((x, y), expr)
+            if f is None:
+                return PlottingEngine._error_plot_message("Gagal membuat fungsi 3D")
+            
+            Z = np.zeros_like(X)
+            valid_points = 0
+            
+            for i in range(X.shape[0]):
+                for j in range(X.shape[1]):
+                    try:
+                        z_val = f(X[i,j], Y[i,j])
+                        if (z_val is not None and 
+                            np.isfinite(z_val) and 
+                            not isinstance(z_val, (complex, sp.Basic))):
+                            Z[i,j] = float(z_val)
+                            valid_points += 1
+                        else:
+                            Z[i,j] = 0
+                    except:
+                        Z[i,j] = 0
+            
+            print(f"📊 3D: {valid_points}/{X.size} points valid")
+            
+            if valid_points < 100:
+                return PlottingEngine._no_plot_message("Tidak cukup titik valid untuk plot 3D")
+            
+            # BUAT PLOT 3D
+            fig = go.Figure(data=[go.Surface(
+                z=Z, x=X, y=Y, 
+                colorscale='Viridis',
+                opacity=0.9,
+                showscale=True
+            )])
+            
+            fig.update_layout(
+                title=dict(
+                    text='🎨 Visualisasi 3D f(x,y)',
+                    x=0.5,
+                    font=dict(size=20, color=COLORS['text'])
+                ),
+                scene=dict(
+                    xaxis_title='X',
+                    yaxis_title='Y', 
+                    zaxis_title='f(x,y)',
+                    camera=dict(eye=dict(x=1.8, y=1.8, z=1.2))
+                ),
+                font=dict(family=FONT, color=COLORS['text'], size=12), 
+                height=500
+            )
+            
+            plot_html = pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
+            print("🎉 3D Plot BERHASIL dibuat!")
+            return plot_html
+            
+        except Exception as e:
+            print(f"💥 Error besar di 3D plot: {str(e)}")
+            return PlottingEngine._error_plot_message(f"Error membuat plot 3D: {str(e)}")
+    
+    @staticmethod
+    def _no_plot_message(message):
+        return f"<div style='padding:20px; background:{COLORS['warning']}20; border-radius:10px; text-align:center;'>{message}</div>"
+    
+    @staticmethod
+    def _error_plot_message(message):
+        return f"<div style='padding:20px; background:{COLORS['error']}20; border-radius:10px; text-align:center;'>{message}</div>"
 
     @staticmethod
     def create_3d_plot(expr_str):
