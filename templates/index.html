@@ -181,6 +181,46 @@
             display: inline-block;
             margin: 5px;
         }
+
+        .math-expression {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            border-left: 3px solid {{ colors.accent }};
+        }
+
+        .result-value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: {{ colors.success }};
+            padding: 10px;
+            background: {{ colors.success }}20;
+            border-radius: 10px;
+            text-align: center;
+            margin: 10px 0;
+        }
+
+        .function-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            color: white;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .function-1 { background: {{ colors.accent }}; }
+        .function-2 { background: {{ colors.secondary }}; }
+
+        .multivariable-warning {
+            background: {{ colors.warning }}20;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            border-left: 3px solid {{ colors.warning }};
+        }
     </style>
 </head>
 <body>
@@ -199,7 +239,28 @@
         <!-- Usage Guide -->
         <div class="card usage-guide">
             <h3>📖 Panduan Penggunaan</h3>
-            <p>Gunakan format: <b>sin(x)/x</b>, <b>√(x-2)</b>, <b>(x²-1)/(x-1)</b>, <b>x^2 + y^2</b> (3D)</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;">
+                <div>
+                    <h4>🎯 Format Input</h4>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li>• <b>sin(x)/x</b> - Trigonometri</li>
+                        <li>• <b>√(x-2)</b> atau <b>sqrt(x-2)</b> - Akar</li>
+                        <li>• <b>(x²-1)/(x-1)</b> - Pecahan</li>
+                        <li>• <b>x^2 + y^2</b> - Fungsi 3D</li>
+                        <li>• <b>exp(x)</b> atau <b>e^x</b> - Eksponensial</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>🎯 Nilai x</h4>
+                    <ul style="list-style: none; padding-left: 0;">
+                        <li>• <b>0</b> - Angka biasa</li>
+                        <li>• <b>0+</b> - Dari kanan</li>
+                        <li>• <b>0-</b> - Dari kiri</li>
+                        <li>• <b>infinity</b> - Tak hingga</li>
+                        <li>• <b>-infinity</b> - Min tak hingga</li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
         <!-- Interactive Examples -->
@@ -210,8 +271,8 @@
                 {% for example in examples %}
                 <div class="example-card" onclick="loadExample({{ loop.index0 }})">
                     <h4>{{ example.name }}</h4>
-                    <p>f(x) = {{ example.expr }}</p>
-                    <small>x→{{ example.xval }}</small>
+                    <div class="math-expression">f(x) = {{ example.expr }}</div>
+                    <small><b>x → {{ example.xval }}</b></small>
                 </div>
                 {% endfor %}
             </div>
@@ -279,6 +340,7 @@
                 <div class="loading">
                     <div class="spinner"></div>
                     <h3>🔄 Menghitung Limit & Membuat Visualisasi...</h3>
+                    <p>Harap tunggu, sistem sedang melakukan perhitungan dan rendering grafik</p>
                 </div>
             `;
         }
@@ -286,7 +348,7 @@
         function displayResults(data) {
             let html = `
                 <div class="card">
-                    <h2 style="text-align: center; color: {{ colors.text }};">📊 HASIL PERHITUNGAN</h2>
+                    <h2 style="text-align: center; color: {{ colors.text }}; border-bottom: 2px solid {{ colors.accent }}; padding-bottom: 15px;">📊 HASIL PERHITUNGAN LIMIT</h2>
                 </div>
             `;
             
@@ -295,11 +357,20 @@
                 const f1 = data.function1;
                 html += `
                     <div class="card result-section">
-                        <h3 style="color: {{ colors.accent }};">Fungsi 1: f(x) = ${f1.display_expression}</h3>
-                        <p><b>Hasil limit:</b> <span style="color: {{ colors.accent }}; font-size: 1.2em;">${f1.limit}</span></p>
+                        <h3><span class="function-badge function-1">f(x)</span> ${f1.display_expression}</h3>
+                        <div class="result-value">
+                            lim<sub>x→${document.querySelector('input[name="xval"]').value}</sub> f(x) = ${f1.limit}
+                        </div>
                         
+                        ${f1.is_multivariable ? `
+                            <div class="multivariable-warning">
+                                🔍 <b>Fungsi 2 Variabel:</b> Analisis kontinuitas lebih kompleks untuk fungsi multivariabel
+                            </div>
+                        ` : ''}
+                        
+                        <h4>📈 Analisis Kontinuitas:</h4>
                         <div class="continuity-steps">
-                            ${f1.continuity.steps.map(step => `<p style="margin: 5px 0;">${step}</p>`).join('')}
+                            ${f1.continuity.steps.map(step => `<p style="margin: 10px 0;">${step}</p>`).join('')}
                         </div>
                     </div>
                 `;
@@ -310,11 +381,20 @@
                 const f2 = data.function2;
                 html += `
                     <div class="card result-section">
-                        <h3 style="color: {{ colors.secondary }};">Fungsi 2: g(x) = ${f2.display_expression}</h3>
-                        <p><b>Hasil limit:</b> <span style="color: {{ colors.secondary }}; font-size: 1.2em;">${f2.limit}</span></p>
+                        <h3><span class="function-badge function-2">g(x)</span> ${f2.display_expression}</h3>
+                        <div class="result-value">
+                            lim<sub>x→${document.querySelector('input[name="xval"]').value}</sub> g(x) = ${f2.limit}
+                        </div>
                         
+                        ${f2.is_multivariable ? `
+                            <div class="multivariable-warning">
+                                🔍 <b>Fungsi 2 Variabel:</b> Analisis kontinuitas lebih kompleks
+                            </div>
+                        ` : ''}
+                        
+                        <h4>📈 Analisis Kontinuitas:</h4>
                         <div class="continuity-steps">
-                            ${f2.continuity.steps.map(step => `<p style="margin: 5px 0;">${step}</p>`).join('')}
+                            ${f2.continuity.steps.map(step => `<p style="margin: 10px 0;">${step}</p>`).join('')}
                         </div>
                     </div>
                 `;
@@ -324,8 +404,11 @@
             if (data.plots && data.plots.plot_2d) {
                 html += `
                     <div class="card">
-                        <h3 style="color: {{ colors.accent }};">📈 Visualisasi 2D</h3>
+                        <h3 style="color: {{ colors.accent }}; border-bottom: 2px solid {{ colors.accent }}; padding-bottom: 10px;">📈 Visualisasi 2D - Grafik Fungsi</h3>
                         <div class="plot-container">${data.plots.plot_2d}</div>
+                        <p style="text-align: center; margin-top: 10px; color: {{ colors.text }}80;">
+                            <small>Garis merah putus-putus menunjukkan titik limit x = ${document.querySelector('input[name="xval"]').value}</small>
+                        </p>
                     </div>
                 `;
             }
@@ -334,8 +417,11 @@
             if (data.plots && data.plots.plot_3d) {
                 html += `
                     <div class="card">
-                        <h3 style="color: {{ colors.threed }};">🎨 Visualisasi 3D</h3>
+                        <h3 style="color: {{ colors.threed }}; border-bottom: 2px solid {{ colors.threed }}; padding-bottom: 10px;">🎨 Visualisasi 3D - Fungsi Multivariabel</h3>
                         <div class="plot-container">${data.plots.plot_3d}</div>
+                        <p style="text-align: center; margin-top: 10px; color: {{ colors.text }}80;">
+                            <small>Drag untuk memutar, scroll untuk zoom. Tampilan 3D untuk fungsi dengan variabel x dan y</small>
+                        </p>
                     </div>
                 `;
             }
@@ -344,10 +430,15 @@
             html += `
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
                     <button onclick="location.reload()" class="btn">🔄 Hitung Lagi</button>
+                    <button onclick="scrollToTop()" class="btn" style="background: {{ colors.secondary }};">⬆️ Ke Atas</button>
                 </div>
             `;
             
             document.getElementById('results').innerHTML = html;
+        }
+        
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
         
         document.getElementById('limitForm').addEventListener('submit', async function(e) {
@@ -360,6 +451,17 @@
                 xval: formData.get('xval'),
                 direction: formData.get('direction')
             };
+            
+            // Validasi input
+            if (!data.expr1.trim()) {
+                showToast('❌ Masukkan fungsi pertama', 'error');
+                return;
+            }
+            
+            if (!data.xval.trim()) {
+                showToast('❌ Masukkan nilai x', 'error');
+                return;
+            }
             
             showLoading();
             
@@ -377,19 +479,41 @@
                 if (result.error) {
                     showToast(`❌ ${result.error}`, 'error');
                     document.getElementById('results').innerHTML = `
-                        <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
+                        <div class="card" style="text-align: center;">
+                            <h3 style="color: {{ colors.error }};">❌ Error</h3>
+                            <p>${result.error}</p>
+                            <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
+                        </div>
                     `;
                 } else {
-                    showToast('✅ Perhitungan selesai!', 'success');
+                    showToast('✅ Perhitungan selesai! Lihat hasil di bawah', 'success');
                     displayResults(result);
                 }
             } catch (error) {
-                showToast('❌ Error koneksi', 'error');
+                showToast('❌ Error koneksi ke server', 'error');
                 document.getElementById('results').innerHTML = `
-                    <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
+                    <div class="card" style="text-align: center;">
+                        <h3 style="color: {{ colors.error }};">❌ Connection Error</h3>
+                        <p>Gagal terhubung ke server. Periksa koneksi internet Anda.</p>
+                        <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
+                    </div>
                 `;
+            }
+        });
+
+        // Auto-focus pada input pertama
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelector('textarea[name="expr1"]').focus();
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                document.getElementById('limitForm').dispatchEvent(new Event('submit'));
             }
         });
     </script>
 </body>
-  </html>
+</html>
+
+
