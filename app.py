@@ -1,943 +1,239 @@
 from flask import Flask, render_template, request, jsonify
-import sympy as sp
-import numpy as np
-import plotly.graph_objects as go
-import plotly.io as pio
+from sympy import *
+import traceback
 import re
-from fractions import Fraction
-from functools import lru_cache
-import math
-import logging
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
-# ========== MODULE 1: COLOR & CONFIG ==========
-COLORS = {
-    'bg': '#FFF5E1', 'accent': '#D7A58F', 'secondary': '#A67C52',
-    'text': '#5C3A21', 'plot_bg': '#FDF6F0', 'button': '#8B5A2B',
-    'button_hover': '#6D4424', 'card': '#FAEBD7', 'error': '#FF6B6B',
-    'success': '#4ECDC4', 'warning': '#FFE66D', 'left': '#4ECDC4',
-    'right': '#FF6B6B', 'both': '#45B7D1', 'theory': '#6A89CC',
-    'trig': '#FF9FF3', 'infinity': '#706FD3', 'threed': '#FF9F1C'
-}
-FONT = "'Nunito', sans-serif"
+# Define semua simbol yang bakal dipake
+x, y, z = symbols('x y z')
+pi = symbols('pi')
+e = symbols('e')
+deg = symbols('deg')
 
-# ========== MODULE 2: PARSING & VALIDATION ==========
-class ExpressionParser:
-    ALLOWED_SYMBOLS = {'x', 'y', 'pi', 'e', 'oo'}
+def konversi_ke_superscript(teks):
+    """Convert x2 jadi x², x3 jadi x³, etc"""
+    superscript_map = {
+        '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+        '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
+    }
     
-    @staticmethod
-    @lru_cache(maxsize=100)
-    def parse(expr):
-        if not expr or not expr.strip():
-            return {"error": "❌ Ekspresi tidak boleh kosong"}
-        
-        try:
-            expr = ExpressionParser._sanitize(expr)
-            expr = ExpressionParser._preprocess(expr)
-            expr = ExpressionParser._validate_symbols(expr)
-            return {"success": expr}
-        except Exception as e:
-            return {"error": str(e)}
+    def replace_power(match):
+        base = match.group(1)
+        power = match.group(2)
+        superscript_power = ''.join(superscript_map.get(char, char) for char in power)
+        return base + superscript_power
     
-    @staticmethod
-    def _sanitize(expr):
-        dangerous = [r'__.*__', r'import\s+\w+', r'exec\s*\(', r'eval\s*\(',
-                    r'open\s*\(', r'file\s*\(', r'os\.', r'sys\.', r'subprocess\.']
-        
-        for pattern in dangerous:
-            expr = re.sub(pattern, '', expr, flags=re.IGNORECASE)
-        
-        if len(expr) > 500:
-            raise ValueError("❌ Ekspresi terlalu panjang (max 500 karakter)")
-        
-        return expr.strip()
-    
-    @staticmethod
-    def _preprocess(expr):
-        original = expr
-        try:
-            # Tambahkan operator * yang hilang
-            expr = re.sub(r'(\d)([a-zA-Z(])', r'\1*\2', expr)
-            expr = re.sub(r'([a-zA-Z)])(\d)', r'\1*\2', expr)
-            expr = re.sub(r'([a-zA-Z)])([a-zA-Z(])', r'\1*\2', expr)
-            
-            # Konversi fungsi trigonometri
-            trig_map = {'sin': 'sin', 'cos': 'cos', 'tan': 'tan', 'cot': 'cot',
-                       'sec': 'sec', 'csc': 'csc', 'arcsin': 'asin', 'arccos': 'acos', 
-                       'arctan': 'atan', 'ln': 'log', '√': 'sqrt', 'log': 'log'}
-            
-            for natural, sympy_func in trig_map.items():
-                expr = re.sub(rf'{natural}\s*\(', f'{sympy_func}(', expr, flags=re.IGNORECASE)
-            
-            # Konversi notasi
-            expr = expr.replace('²', '**2').replace('³', '**3')
-            expr = expr.replace('π', 'pi').replace('∞', 'oo').replace('infinity', 'oo')
-            expr = expr.replace('e^', 'exp').replace('^', '**')
-            expr = re.sub(r'\s+', '', expr)
-            
-            return expr
-        except Exception as e:
-            raise ValueError(f"❌ Gagal parse ekspresi: {original}. Error: {str(e)}")
-    
-    @staticmethod
-    def _validate_symbols(expr):
-        try:
-            test_expr = sp.sympify(expr)
-            free_symbols = {str(s) for s in test_expr.free_symbols}
-            allowed = ExpressionParser.ALLOWED_SYMBOLS
-            invalid_symbols = free_symbols - allowed
-            
-            if invalid_symbols:
-                raise ValueError(f"❌ Simbol tidak diizinkan: {invalid_symbols}")
-                
-            return expr
-        except sp.SympifyError as e:
-            raise ValueError(f"❌ Ekspresi tidak valid: {str(e)}")
+    teks = re.sub(r'([a-zA-Z0-9\)])\^?(\d+)', replace_power, teks)
+    return teks
 
-# ========== MODULE 3: LIMIT CALCULATOR ==========
-class LimitCalculator:
-    @staticmethod
-    @lru_cache(maxsize=100)
-    def calculate(expr_str, x_val, direction='both'):
-        x = sp.symbols('x')
+def parse_fungsi(func_str):
+    try:
+        # Step 1: Convert superscript ke format sympy
+        cleaned = func_str.replace('²', '**2').replace('³', '**3').replace('⁴', '**4')
+        cleaned = cleaned.replace('⁵', '**5').replace('⁶', '**6').replace('⁷', '**7')
+        cleaned = cleaned.replace('⁸', '**8').replace('⁹', '**9').replace('⁰', '**0')
         
-        try:
-            parse_result = ExpressionParser.parse(expr_str)
-            if "error" in parse_result:
-                return {"error": parse_result["error"]}
-                
-            parsed_expr = parse_result["success"]
-            expr = sp.sympify(parsed_expr)
-            
-            # Konversi nilai x
-            if x_val == 'oo':
-                x_val_sym = sp.oo
-            elif x_val == '-oo':
-                x_val_sym = -sp.oo
-            else:
-                try:
-                    x_val_sym = float(x_val)
-                except:
-                    x_val_sym = sp.sympify(x_val)
-            
-            # Hitung limit
-            if direction == 'both':
-                result = sp.limit(expr, x, x_val_sym)
-            elif direction == 'left':
-                result = sp.limit(expr, x, x_val_sym, dir='-')
-            else:
-                result = sp.limit(expr, x, x_val_sym, dir='+')
-            
-            return {"success": LimitCalculator._format_result(result)}
-            
-        except Exception as e:
-            return {"error": f"Error menghitung limit: {str(e)}"}
-    
-    @staticmethod
-    def _format_result(value):
-        if value == sp.oo:
-            return '∞'
-        elif value == -sp.oo:
-            return '-∞'
-        elif value in [sp.zoo, sp.nan]:
-            return 'Tidak terdefinisi'
-        elif value.is_real:
-            try:
-                float_val = float(value)
-                if abs(float_val) > 1e10:
-                    return '∞' if float_val > 0 else '-∞'
-                
-                # Coba format sebagai pecahan dengan presisi lebih tinggi
-                frac = Fraction(float_val).limit_denominator(10000)
-                if abs(frac.numerator/frac.denominator - float_val) < 1e-12:
-                    if frac.denominator == 1:
-                        return str(frac.numerator)
-                    else:
-                        return f"{frac.numerator}/{frac.denominator}"
-                
-                # Format desimal dengan presisi
-                formatted = f"{float_val:.8f}"
-                # Hapus trailing zeros
-                if '.' in formatted:
-                    formatted = formatted.rstrip('0').rstrip('.')
-                return formatted
-            except:
-                return str(value)
-        else:
-            return str(value)
+        # Step 2: Handle simbol khusus
+        cleaned = cleaned.replace('π', 'pi').replace('π', 'pi')
+        cleaned = cleaned.replace('°', '*pi/180')  # Convert degree to radian
+        cleaned = cleaned.replace('∞', 'oo')
+        cleaned = cleaned.replace('^', '**')
+        
+        # Step 3: Handle fungsi trigonometri
+        cleaned = re.sub(r'sin\(', 'sin(', cleaned)
+        cleaned = re.sub(r'cos\(', 'cos(', cleaned)
+        cleaned = re.sub(r'tan\(', 'tan(', cleaned)
+        cleaned = re.sub(r'log\(', 'log(', cleaned)
+        cleaned = re.sub(r'ln\(', 'ln(', cleaned)
+        
+        # Step 4: Handle perkalian implisit: 2x -> 2*x, x( -> x*(
+        cleaned = re.sub(r'(\d)([a-zA-Z\(])', r'\1*\2', cleaned)  # 2x -> 2*x
+        cleaned = re.sub(r'([a-zA-Z0-9\)])(\()', r'\1*\2', cleaned)  # x( -> x*(
+        
+        print(f"Fungsi input: {func_str}")
+        print(f"Fungsi cleaned: {cleaned}")
+        
+        # Parse dengan sympy
+        expr = parse_expr(cleaned, transformations='all')
+        print(f"Fungsi parsed: {expr}")
+        
+        return expr
+        
+    except Exception as e:
+        print(f"Error parsing: {e}")
+        raise ValueError(f"Fungsi tidak valid: {str(e)}")
 
-# ========== MODULE 4: PLOTTING ENGINE ==========
-class PlottingEngine:
-    @staticmethod
-    def create_2d_plot(expr_str1, expr_str2, x_val, direction):
-        if x_val in ['oo', '-oo', '∞', '-∞']:
-            return PlottingEngine._no_plot_message("Visualisasi tidak tersedia untuk limit di tak hingga")
-        
-        try:
-            x_val_float = float(x_val)
-            x = sp.symbols('x')
-            
-            # RANGE OPTIMAL untuk berbagai kasus
-            if x_val_float == 0:
-                left_range, right_range = -3, 3
-            elif abs(x_val_float) < 1:
-                left_range, right_range = -2, 2
-            else:
-                range_size = max(2, abs(x_val_float) * 0.6)
-                left_range = x_val_float - range_size
-                right_range = x_val_float + range_size
-            
-            # BUAT TITIK DENGAN STRATEGI PINTAR
-            X_main = np.linspace(left_range, right_range, 400)
-            
-            # Titik padat di sekitar limit point
-            epsilon = 0.2
-            X_near = np.linspace(x_val_float - epsilon, x_val_float + epsilon, 200)
-            
-            # Gabungkan dan urutkan
-            X = np.sort(np.concatenate([X_main, X_near]))
-            
-            # Hindari titik tepat di singularitas
-            X = X[abs(X - x_val_float) > 1e-8]
-            
-            fig = go.Figure()
-            
-            colors = ['#FF6B6B', '#4ECDC4']  # Warna fixed
-            expressions = [(expr_str1, 'f(x)'), (expr_str2, 'g(x)')]
-            
-            valid_plots = 0
-            
-            for i, (expr_str, label) in enumerate(expressions):
-                if expr_str and expr_str.strip():
-                    try:
-                        parse_result = ExpressionParser.parse(expr_str)
-                        if "error" in parse_result:
-                            continue
-                            
-                        parsed_expr = parse_result["success"]
-                        expr_sympy = sp.sympify(parsed_expr)
-                        
-                        # FUNGSI LAMBDA
-                        f = sp.lambdify(x, expr_sympy, modules=['numpy'])
-                        
-                        Y = []
-                        valid_points = 0
-                        
-                        for x_point in X:
-                            try:
-                                y_val = f(x_point)
-                                
-                                # VALIDASI KETAT hasil
-                                if (y_val is not None and 
-                                    np.isfinite(y_val) and 
-                                    not isinstance(y_val, (complex, sp.Basic)) and
-                                    abs(y_val) < 1e10):
-                                    Y.append(float(y_val))
-                                    valid_points += 1
-                                else:
-                                    Y.append(np.nan)
-                            except:
-                                Y.append(np.nan)
-                        
-                        Y = np.array(Y)
-                        
-                        # PLOT JIKA ADA CUKUP TITIK
-                        if valid_points > 30:
-                            display_expr = ExpressionFormatter.format_display(expr_str)
-                            
-                            # Filter NaN values untuk plotting yang clean
-                            x_clean = []
-                            y_clean = []
-                            
-                            for x_val_pt, y_val_pt in zip(X, Y):
-                                if not np.isnan(y_val_pt):
-                                    x_clean.append(x_val_pt)
-                                    y_clean.append(y_val_pt)
-                            
-                            if len(x_clean) > 10:
-                                fig.add_trace(go.Scatter(
-                                    x=x_clean, y=y_clean, mode='lines', 
-                                    line=dict(color=colors[i], width=3),
-                                    name=f'{label} = {display_expr}',
-                                    connectgaps=False
-                                ))
-                                valid_plots += 1
-                            
-                    except Exception as e:
-                        continue
-            
-            if valid_plots == 0:
-                return PlottingEngine._no_plot_message("Tidak ada fungsi yang berhasil di-plot")
-            
-            # GARIS LIMIT & ANNOTATION
-            fig.add_vline(x=x_val_float, line_dash="dash", line_color="red", 
-                         opacity=0.7, annotation_text=f"x → {x_val}")
-            
-            # LAYOUT FINAL
-            fig.update_layout(
-                plot_bgcolor='white',
-                paper_bgcolor='white',
-                font=dict(color=COLORS['text'], family=FONT, size=14),
-                title=dict(
-                    text="📈 Visualisasi 2D - Grafik Fungsi",
-                    x=0.5,
-                    font=dict(size=20, color=COLORS['text'])
-# ========== MODULE 4: PLOTTING ENGINE ==========
-class PlottingEngine:
-    @staticmethod
-    def safe_lambdify(variables, expr):
-        """Lambdify yang lebih aman dengan multiple fallback"""
-        try:
-            return sp.lambdify(variables, expr, modules=['numpy'])
-        except:
-            try:
-                return sp.lambdify(variables, expr, modules=['math'])
-            except:
-                try:
-                    return sp.lambdify(variables, expr)
-                except:
-                    return None
+def buat_penjelasan(operasi, fungsi, hasil, **kwargs):
+    fungsi_tampil = konversi_ke_superscript(fungsi)
+    hasil_tampil = konversi_ke_superscript(str(hasil))
+    
+    if operasi == 'limit':
+        return f"""
+MENGHITUNG LIMIT
 
-    @staticmethod
-    def create_2d_plot(expr_str1, expr_str2, x_val, direction):
-        if x_val in ['oo', '-oo', '∞', '-∞']:
-            return PlottingEngine._no_plot_message("Visualisasi tidak tersedia untuk limit di tak hingga")
-        
-        try:
-            x_val_float = float(x_val)
-            x = sp.symbols('x')
-            
-            print(f"🔍 DEBUG 2D: expr1='{expr_str1}', expr2='{expr_str2}', x_val={x_val_float}")
-            
-            # RANGE OPTIMAL 
-            if x_val_float == 0:
-                left_range, right_range = -3, 3
-            else:
-                range_size = max(2, abs(x_val_float) * 0.8)
-                left_range = x_val_float - range_size
-                right_range = x_val_float + range_size
-            
-            # BUAT TITIK 
-            X = np.linspace(left_range, right_range, 400)
-            
-            fig = go.Figure()
-            
-            colors = ['#FF6B6B', '#4ECDC4']
-            expressions = [(expr_str1, 'f(x)'), (expr_str2, 'g(x)')]
-            
-            valid_plots = 0
-            
-            for i, (expr_str, label) in enumerate(expressions):
-                if expr_str and expr_str.strip():
-                    try:
-                        print(f"🎯 Plotting {label}: {expr_str}")
-                        
-                        parse_result = ExpressionParser.parse(expr_str)
-                        if "error" in parse_result:
-                            print(f"❌ Parse error: {parse_result['error']}")
-                            continue
-                            
-                        parsed_expr = parse_result["success"]
-                        expr_sympy = sp.sympify(parsed_expr)
-                        
-                        # FUNGSI LAMBDA
-                        f = PlottingEngine.safe_lambdify(x, expr_sympy)
-                        if f is None:
-                            print(f"❌ Gagal membuat fungsi untuk {expr_str}")
-                            continue
-                        
-                        Y = []
-                        valid_points = 0
-                        
-                        for x_point in X:
-                            try:
-                                y_val = f(x_point)
-                                if (y_val is not None and 
-                                    np.isfinite(y_val) and 
-                                    not isinstance(y_val, (complex, sp.Basic))):
-                                    Y.append(float(y_val))
-                                    valid_points += 1
-                                else:
-                                    Y.append(np.nan)
-                            except Exception as e:
-                                Y.append(np.nan)
-                        
-                        print(f"📊 {label}: {valid_points}/{len(X)} points valid")
-                        
-                        Y = np.array(Y)
-                        
-                        # PLOT JIKA ADA CUKUP TITIK
-                        if valid_points > 50:
-                            display_expr = ExpressionFormatter.format_display(expr_str)
-                            
-                            fig.add_trace(go.Scatter(
-                                x=X, y=Y, mode='lines', 
-                                line=dict(color=colors[i], width=3),
-                                name=f'{label} = {display_expr}',
-                                connectgaps=False
-                            ))
-                            valid_plots += 1
-                            print(f"✅ {label} BERHASIL di-plot")
-                        else:
-                            print(f"❌ {label}: Gagal - hanya {valid_points} titik valid")
-                            
-                    except Exception as e:
-                        print(f"💥 Error plotting {expr_str}: {str(e)}")
-                        continue
-            
-            if valid_plots == 0:
-                return PlottingEngine._no_plot_message("Tidak ada fungsi yang berhasil di-plot")
-            
-            # GARIS LIMIT
-            fig.add_vline(x=x_val_float, line_dash="dash", line_color="red", 
-                         opacity=0.7, annotation_text=f"x → {x_val}")
-            
-            # LAYOUT
-            fig.update_layout(
-                plot_bgcolor='white',
-                paper_bgcolor='white',
-                font=dict(color=COLORS['text'], family=FONT, size=14),
-                title=dict(
-                    text="📈 Visualisasi 2D - Grafik Fungsi",
-                    x=0.5,
-                    font=dict(size=20, color=COLORS['text'])
-                ),
-                height=500,
-                showlegend=True,
-                xaxis_title="x",
-                yaxis_title="f(x)",
-                xaxis=dict(
-                    range=[left_range, right_range],
-                    gridcolor='lightgray',
-                    zerolinecolor='lightgray'
-                ),
-                yaxis=dict(
-                    gridcolor='lightgray', 
-                    zerolinecolor='lightgray'
-                )
-            )
-            
-            plot_html = pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
-            print("🎉 2D Plot BERHASIL dibuat!")
-            return plot_html
-            
-        except Exception as e:
-            print(f"💥 Error besar di 2D plot: {str(e)}")
-            return PlottingEngine._error_plot_message(f"Error membuat plot 2D: {str(e)}")
+Fungsi: {fungsi_tampil}
+x mendekati: {kwargs['pendekatan']}
 
-    @staticmethod
-    def create_3d_plot(expr_str):
-        try:
-            if not expr_str or not expr_str.strip():
-                return PlottingEngine._no_plot_message("Ekspresi kosong")
-                
-            x, y = sp.symbols('x y')
-            
-            print(f"🔍 DEBUG 3D: expr='{expr_str}'")
-            
-            parse_result = ExpressionParser.parse(expr_str)
-            if "error" in parse_result:
-                return PlottingEngine._no_plot_message(f"Ekspresi tidak valid: {parse_result['error']}")
-            
-            parsed_expr = parse_result["success"]
-            expr = sp.sympify(parsed_expr)
-            
-            # CEK VARIABEL Y - HANYA untuk fungsi yang PASTI 3D
-            free_symbols = {str(s) for s in expr.free_symbols}
-            if 'y' not in free_symbols:
-                # Jika tidak ada y, buat plot 3D dari fungsi 2D dengan y=0
-                print("⚠️ Fungsi 2D, buat plot 3D dengan y=0")
-                # return PlottingEngine._no_plot_message("Fungsi tidak mengandung variabel y")
-            
-            # GRID 3D
-            X_vals = np.linspace(-3, 3, 40)
-            Y_vals = np.linspace(-3, 3, 40)
-            X, Y = np.meshgrid(X_vals, Y_vals)
-            
-            # EVALUASI FUNGSI
-            f = PlottingEngine.safe_lambdify((x, y), expr)
-            if f is None:
-                return PlottingEngine._error_plot_message("Gagal membuat fungsi 3D")
-            
-            Z = np.zeros_like(X)
-            valid_points = 0
-            
-            for i in range(X.shape[0]):
-                for j in range(X.shape[1]):
-                    try:
-                        z_val = f(X[i,j], Y[i,j])
-                        if (z_val is not None and 
-                            np.isfinite(z_val) and 
-                            not isinstance(z_val, (complex, sp.Basic))):
-                            Z[i,j] = float(z_val)
-                            valid_points += 1
-                        else:
-                            Z[i,j] = 0
-                    except:
-                        Z[i,j] = 0
-            
-            print(f"📊 3D: {valid_points}/{X.size} points valid")
-            
-            if valid_points < 100:
-                return PlottingEngine._no_plot_message("Tidak cukup titik valid untuk plot 3D")
-            
-            # BUAT PLOT 3D
-            fig = go.Figure(data=[go.Surface(
-                z=Z, x=X, y=Y, 
-                colorscale='Viridis',
-                opacity=0.9,
-                showscale=True
-            )])
-            
-            fig.update_layout(
-                title=dict(
-                    text='🎨 Visualisasi 3D f(x,y)',
-                    x=0.5,
-                    font=dict(size=20, color=COLORS['text'])
-                ),
-                scene=dict(
-                    xaxis_title='X',
-                    yaxis_title='Y', 
-                    zaxis_title='f(x,y)',
-                    camera=dict(eye=dict(x=1.8, y=1.8, z=1.2))
-                ),
-                font=dict(family=FONT, color=COLORS['text'], size=12), 
-                height=500
-            )
-            
-            plot_html = pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
-            print("🎉 3D Plot BERHASIL dibuat!")
-            return plot_html
-            
-        except Exception as e:
-            print(f"💥 Error besar di 3D plot: {str(e)}")
-            return PlottingEngine._error_plot_message(f"Error membuat plot 3D: {str(e)}")
-    
-    @staticmethod
-    def _no_plot_message(message):
-        return f"<div style='padding:20px; background:{COLORS['warning']}20; border-radius:10px; text-align:center;'>{message}</div>"
-    
-    @staticmethod
-    def _error_plot_message(message):
-        return f"<div style='padding:20px; background:{COLORS['error']}20; border-radius:10px; text-align:center;'>{message}</div>"
+Langkah-langkah:
+1. Substitusi x = {kwargs['pendekatan']}
+2. Hitung nilai fungsi
+3. Sederhanakan hasil
 
-    @staticmethod
-    def create_3d_plot(expr_str):
-        try:
-            if not expr_str or not expr_str.strip():
-                return PlottingEngine._no_plot_message("Ekspresi kosong")
-                
-            x, y = sp.symbols('x y')
-            
-            parse_result = ExpressionParser.parse(expr_str)
-            if "error" in parse_result:
-                return PlottingEngine._no_plot_message(f"Ekspresi tidak valid: {parse_result['error']}")
-            
-            parsed_expr = parse_result["success"]
-            expr = sp.sympify(parsed_expr)
-            
-            # CEK VARIABEL Y
-            free_symbols = {str(s) for s in expr.free_symbols}
-            if 'y' not in free_symbols:
-                return PlottingEngine._no_plot_message("Fungsi tidak mengandung variabel y")
-            
-            # GRID 3D
-            X_vals = np.linspace(-2.5, 2.5, 50)
-            Y_vals = np.linspace(-2.5, 2.5, 50)
-            X, Y = np.meshgrid(X_vals, Y_vals)
-            
-            # EVALUASI FUNGSI
-            f = sp.lambdify((x, y), expr, modules=['numpy'])
-            
-            Z = np.zeros_like(X)
-            valid_points = 0
-            
-            for i in range(X.shape[0]):
-                for j in range(X.shape[1]):
-                    try:
-                        z_val = f(X[i,j], Y[i,j])
-                        if (z_val is not None and 
-                            np.isfinite(z_val) and 
-                            not isinstance(z_val, (complex, sp.Basic)) and
-                            abs(z_val) < 100):
-                            Z[i,j] = float(z_val)
-                            valid_points += 1
-                        else:
-                            Z[i,j] = 0
-                    except:
-                        Z[i,j] = 0
-            
-            if valid_points < 500:
-                return PlottingEngine._no_plot_message("Fungsi 3D tidak menghasilkan cukup titik valid")
-            
-            # BUAT PLOT 3D
-            fig = go.Figure(data=[go.Surface(
-                z=Z, x=X, y=Y, 
-                colorscale='Viridis',
-                opacity=0.9,
-                showscale=True,
-                surfacecolor=Z,
-                contours=dict(
-                    x=dict(show=True, color='gray', width=1),
-                    y=dict(show=True, color='gray', width=1),
-                    z=dict(show=True, color='gray', width=1)
-                )
-            )])
-            
-            fig.update_layout(
-                title=dict(
-                    text='🎨 Visualisasi 3D f(x,y)',
-                    x=0.5,
-                    font=dict(size=20, color=COLORS['text'])
-                ),
-                scene=dict(
-                    xaxis_title='X',
-                    yaxis_title='Y', 
-                    zaxis_title='f(x,y)',
-                    camera=dict(eye=dict(x=1.5, y=1.5, z=1.2)),
-                    aspectmode='cube',
-                    bgcolor='white'
-                ),
-                font=dict(family=FONT, color=COLORS['text'], size=12), 
-                height=600,
-                margin=dict(l=0, r=0, b=0, t=50),
-                paper_bgcolor='white'
-            )
-            
-            return pio.to_html(fig, full_html=False, include_plotlyjs='cdn')
-            
-        except Exception as e:
-            return PlottingEngine._error_plot_message(f"Error membuat plot 3D: {str(e)}")
-    
-    @staticmethod
-    def _no_plot_message(message):
-        return f"<div style='padding:20px; background:{COLORS['warning']}20; border-radius:10px; text-align:center;'>{message}</div>"
-    
-    @staticmethod
-    def _error_plot_message(message):
-        return f"<div style='padding:20px; background:{COLORS['error']}20; border-radius:10px; text-align:center;'>{message}</div>"
+Hasil: lim({fungsi_tampil}) = {hasil_tampil}
+Nilai numerik: {kwargs['nilai']}"""
 
-# ========== MODULE 5: CONTINUITY ANALYZER ==========
-class ContinuityAnalyzer:
-    @staticmethod
-    def analyze(expr_str, x_val):
-        x = sp.symbols('x')
-        analysis = {'steps': [], 'continuous': False, 'discontinuity_type': None}
-        
-        try:
-            parse_result = ExpressionParser.parse(expr_str)
-            if "error" in parse_result:
-                analysis['steps'].append(f"❌ {parse_result['error']}")
-                return analysis
-                
-            parsed_expr = parse_result["success"]
-            expr = sp.sympify(parsed_expr)
-            
-            analysis['steps'].append(f"🔍 <b>Analisis Kontinuitas di x = {x_val}:</b>")
-            
-            defined, func_value = ContinuityAnalyzer._check_definition(expr, x, x_val)
-            analysis['defined'] = defined
-            analysis['func_value'] = func_value
-            
-            # Jika tidak terdefinisi, langsung return
-            if not defined:
-                analysis['steps'].append("❌ <b>f(a) tidak terdefinisi</b>")
-                analysis.update({
-                    'continuous': False, 
-                    'discontinuity_type': "Diskontinu karena f(a) tidak terdefinisi"
-                })
-                return analysis
-            
-            limit_result_left = LimitCalculator.calculate(expr_str, x_val, 'left')
-            limit_result_right = LimitCalculator.calculate(expr_str, x_val, 'right')
-            limit_result_both = LimitCalculator.calculate(expr_str, x_val, 'both')
-            
-            analysis.update({
-                'limit_left': limit_result_left.get('success') if 'success' in limit_result_left else limit_result_left.get('error', 'Error'),
-                'limit_right': limit_result_right.get('success') if 'success' in limit_result_right else limit_result_right.get('error', 'Error'),
-                'limit_both': limit_result_both.get('success') if 'success' in limit_result_both else limit_result_both.get('error', 'Error')
-            })
-            
-            analysis['steps'].extend([
-                f"📊 Limit kiri: {analysis['limit_left']}",
-                f"📊 Limit kanan: {analysis['limit_right']}",
-                f"📊 Limit kedua arah: {analysis['limit_both']}",
-                f"📊 Nilai fungsi f({x_val}): {analysis['func_value']}"
-            ])
-            
-            continuity_result = ContinuityAnalyzer._determine_continuity(analysis, x_val)
-            analysis.update(continuity_result)
-            
-            # Tambahkan penjelasan detail
-            explanation = ContinuityAnalyzer._get_detailed_explanation(analysis)
-            analysis['steps'].append(f"💡 <b>Penjelasan:</b> {explanation}")
-            
-        except Exception as e:
-            analysis['steps'].append(f"❌ Error dalam analisis: {str(e)}")
-        
-        return analysis
-    
-    @staticmethod
-    def _check_definition(expr, x, x_val):
-        if x_val in ['oo', '-oo']:
-            return False, "Tidak terdefinisi"
-        
-        try:
-            func_val = expr.subs(x, x_val)
-            if func_val.is_infinite or func_val.is_complex or func_val == sp.nan or func_val == sp.zoo:
-                return False, "Tidak terdefinisi"
-            return True, LimitCalculator._format_result(func_val)
-        except:
-            return False, "Tidak terdefinisi"
-    
-    @staticmethod
-    def _determine_continuity(analysis, x_val):
-        # Cek apakah limit kiri dan kanan sama (dengan toleransi)
-        limit_exists = ContinuityAnalyzer._limits_equal(analysis['limit_left'], analysis['limit_right'])
-        
-        # Cek apakah limit sama dengan nilai fungsi
-        limit_equals_value = ContinuityAnalyzer._limits_equal(analysis['limit_both'], analysis['func_value'])
-        
-        if limit_exists and limit_equals_value:
-            return {'continuous': True, 'discontinuity_type': "Kontinu"}
-        else:
-            if not limit_exists:
-                return {'continuous': False, 'discontinuity_type': "Diskontinuitas lompatan"}
-            else:
-                return {'continuous': False, 'discontinuity_type': "Diskontinuitas yang dapat dihapus"}
-    
-    @staticmethod
-    def _limits_equal(limit1, limit2):
-        """Periksa apakah dua nilai limit sama (dengan toleransi untuk float)"""
-        if limit1 == limit2:
-            return True
-        
-        # Handle infinity cases
-        if limit1 in ['∞', 'oo'] and limit2 in ['∞', 'oo']:
-            return True
-        if limit1 in ['-∞', '-oo'] and limit2 in ['-∞', '-oo']:
-            return True
-        
-        # Coba konversi ke float untuk perbandingan numerik
-        try:
-            val1 = ContinuityAnalyzer._parse_limit_value(limit1)
-            val2 = ContinuityAnalyzer._parse_limit_value(limit2)
-            
-            if val1 is not None and val2 is not None:
-                # Pakai math.isclose() dengan toleransi
-                return math.isclose(val1, val2, rel_tol=1e-9, abs_tol=1e-12)
-        except:
-            pass
-        
-        return False
-    
-    @staticmethod
-    def _parse_limit_value(limit_str):
-        """Parse string limit menjadi nilai float"""
-        if limit_str in ['∞', 'oo']:
-            return float('inf')
-        elif limit_str in ['-∞', '-oo']:
-            return float('-inf')
-        elif limit_str in ['Tidak terdefinisi', 'Error menghitung limit:']:
-            return None
-        
-        try:
-            # Coba parse sebagai float langsung
-            return float(limit_str)
-        except:
-            # Coba parse fraction
-            if '/' in limit_str:
-                try:
-                    num, den = limit_str.split('/')
-                    return float(num) / float(den)
-                except:
-                    pass
-            return None
-    
-    @staticmethod
-    def _get_detailed_explanation(analysis):
-        """Berikan penjelasan detail tentang kontinuitas"""
-        if analysis['continuous']:
-            return "Fungsi kontinu karena limit sama dengan nilai fungsi di titik tersebut."
-        
-        if not analysis['defined']:
-            return "Fungsi tidak terdefinisi di titik ini (misal: pembagian nol, akar negatif)."
-        
-        if analysis['discontinuity_type'] == "Diskontinuitas lompatan":
-            return "Limit kiri dan kanan berbeda, menunjukkan lompatan pada grafik."
-        elif analysis['discontinuity_type'] == "Diskontinuitas yang dapat dihapus":
-            return "Limit ada tetapi tidak sama dengan nilai fungsi (biasanya hole pada grafik)."
-        
-        return "Fungsi memiliki diskontinuitas pada titik ini."
+    elif operasi == 'turunan':
+        return f"""
+MENCARI TURUNAN
 
-# ========== MODULE 6: UI COMPONENTS ==========
-class ExpressionFormatter:
-    @staticmethod
-    def format_display(expr_str):
-        if not expr_str:
-            return ""
-        
-        expr_str = str(expr_str)
-        
-        # Step-by-step replacement yang lebih aman
-        expr_str = re.sub(r'\*\*(\d+)', r'^\1', expr_str)
-        
-        replacements = [
-            (r'sqrt\(', '√('),
-            (r'pi', 'π'),
-            (r'oo', '∞'),
-            (r'exp\(', 'e^('),
-            (r'asin', 'arcsin'),
-            (r'acos', 'arccos'), 
-            (r'atan', 'arctan'),
-            (r'log', 'ln'),
-            (r'\^2', '²'),
-            (r'\^3', '³'),
-        ]
-        
-        for old, new in replacements:
-            expr_str = expr_str.replace(old, new)
-        
-        # Remove multiplication signs for cleaner display
-        expr_str = re.sub(r'(\d)([a-zA-Z(])', r'\1\2', expr_str)
-        expr_str = re.sub(r'([a-zA-Z)])(\d)', r'\1\2', expr_str)
-        
-        return expr_str
+Fungsi: {fungsi_tampil}
 
-class InputValidator:
-    @staticmethod
-    def parse_x_value(x_str):
-        if not x_str:
-            return None, "Nilai x tidak boleh kosong"
-        
-        x_str = x_str.strip()
-        
-        if x_str.lower() in ['inf', 'infinity', '∞']:
-            return 'oo', None
-        elif x_str.lower() in ['-inf', '-infinity', '-∞']:
-            return '-oo', None
-        
-        if x_str.endswith('+') or x_str.endswith('-'):
-            try:
-                base_val = float(x_str[:-1])
-                direction = 'right' if x_str.endswith('+') else 'left'
-                return base_val, direction
-            except:
-                return None, "Format nilai x tidak valid"
-        
-        try:
-            return float(x_str), None
-        except:
-            return None, "Nilai x harus berupa angka"
+Langkah-langkah:
+1. Turunkan pangkat ke koefisien
+2. Kurangi pangkat dengan 1
+3. Gabungkan semua suku
 
-class ExampleManager:
-    EXAMPLES = [
-        {"name": "🔺 Limit Trigonometri", "expr": "sin(x)/x", "xval": "0"},
-        {"name": "∞ Limit Tak Hingga", "expr": "(2*x**2 + 3)/(x**2 - 1)", "xval": "infinity"},
-        {"name": "√ Limit Akar", "expr": "sqrt(x-2)", "xval": "2"},
-        {"name": "📈 Limit Eksponensial", "expr": "(1 + 1/x)**x", "xval": "infinity"},
-        {"name": "🎭 Limit Piecewise", "expr": "(x**2 - 1)/(x - 1)", "xval": "1"},
-        {"name": "🧊 Fungsi 3D", "expr": "x**2 + y**2", "xval": "0"}
-    ]
+Turunan: {hasil_tampil}
 
-# ========== FLASK ROUTES ==========
+Artinya: Setiap x berubah 1 satuan, fungsi berubah {hasil_tampil}"""
+
+    elif operasi == 'integral_tentu':
+        return f"""
+MENGHITUNG INTEGRAL TENTU
+
+Fungsi: {fungsi_tampil}
+Batas: x = {kwargs['bawah']} sampai x = {kwargs['atas']}
+
+Langkah-langkah:
+1. Cari anti-turunan (integral tak tentu)
+2. Hitung di batas atas (x={kwargs['atas']})
+3. Hitung di batas bawah (x={kwargs['bawah']})
+4. Kurangkan: F({kwargs['atas']}) - F({kwargs['bawah']})
+
+Hasil: ∫({fungsi_tampil}) dx = {hasil_tampil}
+Luas daerah: {kwargs['nilai']}"""
+
+    elif operasi == 'integral_tak_tentu':
+        return f"""
+MENCARI INTEGRAL TAK TENTU
+
+Fungsi: {fungsi_tampil}
+
+Langkah-langkah:
+1. Naikkan pangkat setiap suku
+2. Bagi dengan pangkat baru
+3. Tambahkan konstanta +C
+
+Hasil: ∫({fungsi_tampil}) dx = {hasil_tampil} + C
+
+Keterangan: +C menyatakan keluarga fungsi yang mungkin"""
+
 @app.route('/')
-def index():
-    examples = ExampleManager.EXAMPLES
-    return render_template('index.html', colors=COLORS, font=FONT, examples=examples)
+def home():
+    return render_template('index.html')
 
-@app.route('/calculate', methods=['POST'])
-def calculate():
-    data = request.json
-    expr1 = data.get('expr1', '')
-    expr2 = data.get('expr2', '')
-    xval_str = data.get('xval', '')
-    direction = data.get('direction', 'both')
-    
-    # Validate input
-    xval, auto_direction = InputValidator.parse_x_value(xval_str)
-    if xval is None:
-        return jsonify({"error": auto_direction})
-    
-    if auto_direction:
-        direction = auto_direction
-    
-    # Validate expression
-    parse_result = ExpressionParser.parse(expr1)
-    if "error" in parse_result:
-        return jsonify({"error": parse_result["error"]})
-    
-    # Calculate results
-    results = {}
-    
-    # Function 1
-    limit_result1 = LimitCalculator.calculate(expr1, xval, direction)
-    
-    # Cek apakah fungsi 2 variabel
-    x, y = sp.symbols('x y')
-    parsed_expr = sp.sympify(parse_result["success"])
-    free_symbols = {str(s) for s in parsed_expr.free_symbols}
-    
-    if 'y' in free_symbols:
-        # Fungsi 2 variabel - skip continuity analysis
-        continuity1 = {
-            'steps': [
-                "🔍 <b>Fungsi 2 Variabel Detected</b>",
-                "📊 Analisis kontinuitas untuk fungsi multivariabel lebih kompleks",
-                "🎨 Lihat visualisasi 3D untuk memahami perilaku fungsi"
-            ],
-            'continuous': None,
-            'discontinuity_type': "Fungsi multivariabel - analisis lebih kompleks"
-        }
-    else:
-        # Fungsi 1 variabel - lakukan analisis kontinuitas normal
-        continuity1 = ContinuityAnalyzer.analyze(expr1, xval)
-    
-    results['function1'] = {
-        'expression': expr1,
-        'display_expression': ExpressionFormatter.format_display(expr1),
-        'limit': limit_result1.get('success') if 'success' in limit_result1 else limit_result1.get('error'),
-        'continuity': continuity1,
-        'is_multivariable': 'y' in free_symbols
-    }
-    
-    # Function 2 (if provided)
-    if expr2 and expr2.strip():
-        parse_result2 = ExpressionParser.parse(expr2)
-        if "error" not in parse_result2:
-            limit_result2 = LimitCalculator.calculate(expr2, xval, direction)
-            parsed_expr2 = sp.sympify(parse_result2["success"])
-            free_symbols2 = {str(s) for s in parsed_expr2.free_symbols}
+@app.route('/hitung', methods=['POST'])
+def hitung():
+    try:
+        data = request.get_json()
+        op = data['operasi']
+        fungsi_str = data['fungsi']
+        
+        print(f"Memproses: {op} untuk fungsi: {fungsi_str}")
+        
+        fungsi = parse_fungsi(fungsi_str)
+
+        if op == 'limit':
+            pendekatan = data.get('pendekatan', '0')
+            print(f"Menghitung limit mendekati: {pendekatan}")
             
-            if 'y' in free_symbols2:
-                continuity2 = {
-                    'steps': ["🔍 Fungsi 2 Variabel - analisis kontinuitas skipped"],
-                    'continuous': None,
-                    'discontinuity_type': "Fungsi multivariabel"
-                }
+            if pendekatan in ['∞', 'oo', 'inf']:
+                hasil = limit(fungsi, x, oo)
             else:
-                continuity2 = ContinuityAnalyzer.analyze(expr2, xval)
+                # Coba convert ke float, kalo gagal pake string
+                try:
+                    pendekatan_val = float(pendekatan)
+                except:
+                    pendekatan_val = pendekatan
+                hasil = limit(fungsi, x, pendekatan_val)
             
-            results['function2'] = {
-                'expression': expr2,
-                'display_expression': ExpressionFormatter.format_display(expr2),
-                'limit': limit_result2.get('success') if 'success' in limit_result2 else limit_result2.get('error'),
-                'continuity': continuity2,
-                'is_multivariable': 'y' in free_symbols2
-            }
-    
-    # Generate plots
-    plot_2d = PlottingEngine.create_2d_plot(expr1, expr2, xval, direction)
-    plot_3d = PlottingEngine.create_3d_plot(expr1)
-    
-    results['plots'] = {
-        'plot_2d': plot_2d,
-        'plot_3d': plot_3d
-    }
-    
-    return jsonify(results)
+            hasil_str = str(hasil).replace('**', '^').replace('*', '')
+            try:
+                nilai = float(hasil.evalf())
+            except:
+                nilai = str(hasil)
+            
+            print(f"Hasil limit: {hasil}")
+            
+            return jsonify({
+                'sukses': True,
+                'tipe': 'limit',
+                'hasil': hasil_str,
+                'nilai': nilai,
+                'fungsi': fungsi_str,
+                'pendekatan': pendekatan,
+                'penjelasan': buat_penjelasan('limit', fungsi_str, hasil_str, 
+                                            pendekatan=pendekatan, nilai=nilai)
+            })
+
+        elif op == 'turunan':
+            print("Menghitung turunan...")
+            hasil = diff(fungsi, x)
+            hasil_str = str(hasil).replace('**', '^').replace('*', '')
+            
+            print(f"Hasil turunan: {hasil}")
+            
+            return jsonify({
+                'sukses': True,
+                'tipe': 'turunan', 
+                'hasil': hasil_str,
+                'fungsi': fungsi_str,
+                'penjelasan': buat_penjelasan('turunan', fungsi_str, hasil_str)
+            })
+
+        elif op == 'integral':
+            if 'bawah' in data and 'atas' in data:
+                print(f"Menghitung integral tentu dari {data['bawah']} sampai {data['atas']}")
+                # Integral tentu
+                hasil_integral = integrate(fungsi, x)
+                hasil_numerik = integrate(fungsi, (x, float(data['bawah']), float(data['atas'])))
+                nilai = float(hasil_numerik.evalf())
+                hasil_str = str(hasil_integral).replace('**', '^').replace('*', '')
+                
+                print(f"Hasil integral tentu: {hasil_integral}")
+                
+                return jsonify({
+                    'sukses': True,
+                    'tipe': 'integral_tentu',
+                    'hasil': hasil_str,
+                    'nilai': nilai,
+                    'fungsi': fungsi_str,
+                    'bawah': data['bawah'],
+                    'atas': data['atas'],
+                    'penjelasan': buat_penjelasan('integral_tentu', fungsi_str, hasil_str,
+                                                bawah=data['bawah'], atas=data['atas'], nilai=nilai)
+                })
+            else:
+                print("Menghitung integral tak tentu...")
+                # Integral tak tentu
+                hasil = integrate(fungsi, x)
+                hasil_str = str(hasil).replace('**', '^').replace('*', '')
+                
+                print(f"Hasil integral tak tentu: {hasil}")
+                
+                return jsonify({
+                    'sukses': True,
+                    'tipe': 'integral_tak_tentu',
+                    'hasil': hasil_str,
+                    'fungsi': fungsi_str,
+                    'penjelasan': buat_penjelasan('integral_tak_tentu', fungsi_str, hasil_str)
+                })
+
+    except Exception as e:
+        print(f"Error: {traceback.format_exc()}")
+        return jsonify({'sukses': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print("🐼 Kalkulator Limitra  jalan di http://localhost:5000")
+    app.run(host='0.0.0.0', port=5000, debug=True)
