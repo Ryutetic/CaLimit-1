@@ -1,519 +1,463 @@
 <!DOCTYPE html>
-<html lang="id">
+<html>
 <head>
+    <title>Limitra - Kalkulator Matematika</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🧮 CaLimit Pro - Kalkulator Limit</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --coklat-muda: #F5E6D3;
+            --coklat-sedang: #D7CCC8;
+            --coklat-tua: #A1887F;
+            --coklat-gelap: #5D4037;
+        }
+        
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         body {
-            font-family: {{ font }};
-            background-color: {{ colors.bg }};
-            color: {{ colors.text }};
-            line-height: 1.6;
+            background: linear-gradient(135deg, var(--coklat-muda) 0%, #E8D5B7 100%);
+            min-height: 100vh;
+            padding: 20px;
+            font-size: 16px;
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 600px;
             margin: 0 auto;
-            padding: 20px;
+            animation: fadeIn 0.8s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         .header {
             text-align: center;
-            padding: 30px;
-            background: linear-gradient(135deg, {{ colors.accent }}, {{ colors.theory }});
-            border-radius: 0 0 25px 25px;
             margin-bottom: 30px;
-            color: white;
+            animation: slideDown 0.8s ease-out;
         }
         
-        .header h1 {
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .title {
+            color: var(--coklat-gelap);
             font-size: 2.5em;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .panda-icon {
+            font-size: 1.2em;
+            margin-right: 10px;
+        }
+        
+        .subtitle {
+            color: var(--coklat-tua);
+            font-size: 1.1em;
+            font-weight: 500;
         }
         
         .card {
-            background: {{ colors.card }};
+            background: rgba(255, 255, 255, 0.95);
             padding: 25px;
             border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(93, 64, 55, 0.15);
+            border: 2px solid var(--coklat-sedang);
             margin-bottom: 25px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
         
-        .usage-guide {
-            background: {{ colors.bg }};
-            border: 2px solid {{ colors.accent }};
-        }
-        
-        .examples-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-        
-        .example-card {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        
-        .example-card:hover {
-            transform: scale(1.02);
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(93, 64, 55, 0.2);
         }
         
         .input-group {
-            display: grid;
-            gap: 15px;
+            margin-bottom: 20px;
+            animation: slideUp 0.6s ease-out;
         }
         
-        textarea, input, select {
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        
+        .label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--coklat-gelap);
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        
+        .input, .select {
             width: 100%;
-            padding: 12px;
-            border: 2px solid {{ colors.accent }}20;
-            border-radius: 10px;
-            font-family: {{ font }};
+            padding: 15px;
+            border: 2px solid var(--coklat-sedang);
+            border-radius: 12px;
             font-size: 16px;
             background: white;
+            transition: all 0.3s ease;
         }
         
-        textarea:focus, input:focus, select:focus {
+        .input:focus, .select:focus {
             outline: none;
-            border-color: {{ colors.accent }};
+            border-color: var(--coklat-tua);
+            box-shadow: 0 0 0 3px rgba(161, 136, 127, 0.2);
+            transform: scale(1.02);
         }
         
-        .btn {
-            background: {{ colors.success }};
+        .btn-hitung {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--coklat-tua) 0%, var(--coklat-gelap) 100%);
             color: white;
             border: none;
-            padding: 15px 25px;
-            border-radius: 10px;
-            font-family: {{ font }};
-            font-size: 16px;
+            border-radius: 12px;
+            font-size: 1.2em;
+            font-weight: bold;
             cursor: pointer;
-            transition: all 0.3s;
+            margin-top: 15px;
+            transition: all 0.3s ease;
         }
         
-        .btn:hover {
-            background: {{ colors.button_hover }};
+        .btn-hitung:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(93, 64, 55, 0.3);
         }
         
-        .btn-danger {
-            background: {{ colors.error }};
+        .hasil-title {
+            color: var(--coklat-gelap);
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            animation: popIn 0.6s ease-out;
         }
         
-        .result-section {
-            border-left: 5px solid {{ colors.accent }};
+        @keyframes popIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
         }
         
-        .continuity-steps {
-            background: #4ECDC420;
-            padding: 15px;
-            border-radius: 10px;
-            margin: 15px 0;
-        }
-        
-        .plot-container {
-            background: white;
+        .hasil-rumus {
+            font-size: 1.3em;
+            margin-bottom: 15px;
             padding: 20px;
-            border-radius: 10px;
-            margin: 15px 0;
+            background: linear-gradient(135deg, var(--coklat-muda) 0%, var(--coklat-sedang) 100%);
+            border-radius: 15px;
+            text-align: center;
+            font-weight: bold;
+            color: var(--coklat-gelap);
+            border: 2px solid var(--coklat-tua);
+            animation: bounceIn 0.8s ease-out;
         }
         
-        .toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 15px 20px;
-            border-radius: 10px;
-            color: white;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
+        @keyframes bounceIn {
+            0% { transform: scale(0.3); opacity: 0; }
+            50% { transform: scale(1.05); }
+            70% { transform: scale(0.9); }
+            100% { transform: scale(1); opacity: 1; }
         }
         
-        .toast.success { background: {{ colors.success }}; }
-        .toast.error { background: {{ colors.error }}; }
-        .toast.warning { background: {{ colors.warning }}; color: {{ colors.text }}; }
+        .hasil-nilai {
+            font-size: 1.1em;
+            color: var(--coklat-tua);
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+            animation: fadeIn 0.8s ease-in 0.2s both;
+        }
+        
+        .penjelasan {
+            background: rgba(245, 230, 211, 0.8);
+            padding: 20px;
+            border-radius: 15px;
+            line-height: 1.7;
+            color: var(--coklat-gelap);
+            border-left: 5px solid var(--coklat-tua);
+            white-space: pre-line;
+            animation: slideIn 0.8s ease-out 0.4s both;
+            backdrop-filter: blur(5px);
+        }
         
         @keyframes slideIn {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
+            from { transform: translateX(-30px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .hidden {
+            display: none;
         }
         
         .loading {
             text-align: center;
-            padding: 40px;
+            color: var(--coklat-tua);
+            padding: 30px;
+            font-size: 1.2em;
         }
         
-        .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid {{ colors.accent }};
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
+        .error {
+            background: #FFEBEE;
+            color: #D32F2F;
+            padding: 20px;
+            border-radius: 12px;
+            border-left: 5px solid #D32F2F;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .tag {
-            background: rgba(255,255,255,0.3);
-            padding: 5px 15px;
-            border-radius: 20px;
-            color: white;
-            font-size: 0.9em;
-            display: inline-block;
-            margin: 5px;
-        }
-
-        .math-expression {
-            font-family: 'Times New Roman', serif;
-            font-style: italic;
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 5px;
-            border-left: 3px solid {{ colors.accent }};
-        }
-
-        .result-value {
-            font-size: 1.3em;
-            font-weight: bold;
-            color: {{ colors.success }};
-            padding: 10px;
-            background: {{ colors.success }}20;
+        .examples {
+            background: rgba(255, 255, 255, 0.8);
+            padding: 15px;
             border-radius: 10px;
-            text-align: center;
-            margin: 10px 0;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: var(--coklat-tua);
         }
-
-        .function-badge {
-            display: inline-block;
-            padding: 5px 10px;
-            border-radius: 20px;
-            color: white;
-            font-weight: bold;
-            margin-right: 10px;
-        }
-
-        .function-1 { background: {{ colors.accent }}; }
-        .function-2 { background: {{ colors.secondary }}; }
-
-        .multivariable-warning {
-            background: {{ colors.warning }}20;
-            padding: 10px;
+        
+        .example-item {
+            margin: 5px 0;
+            cursor: pointer;
+            padding: 5px;
             border-radius: 5px;
-            margin: 10px 0;
-            border-left: 3px solid {{ colors.warning }};
+            transition: background 0.3s ease;
+        }
+        
+        .example-item:hover {
+            background: var(--coklat-muda);
+        }
+        
+        .symbols-help {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: var(--coklat-gelap);
+            border-left: 3px solid var(--coklat-tua);
+        }
+        
+        .symbol-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🧮 CaLimit Pro</h1>
-        <p>Kalkulator Limit Intelligent + Visualisasi 2D & 3D</p>
-        <div style="margin-top: 15px;">
-            <span class="tag">Step-by-Step</span>
-            <span class="tag">Visualisasi 2D</span>
-            <span class="tag">Visualisasi 3D</span>
-            <span class="tag">Analisis Kontinuitas</span>
-        </div>
-    </div>
-
     <div class="container">
-        <!-- Usage Guide -->
-        <div class="card usage-guide">
-            <h3>📖 Panduan Penggunaan</h3>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;">
-                <div>
-                    <h4>🎯 Format Input</h4>
-                    <ul style="list-style: none; padding-left: 0;">
-                        <li>• <b>sin(x)/x</b> - Trigonometri</li>
-                        <li>• <b>√(x-2)</b> atau <b>sqrt(x-2)</b> - Akar</li>
-                        <li>• <b>(x²-1)/(x-1)</b> - Pecahan</li>
-                        <li>• <b>x^2 + y^2</b> - Fungsi 3D</li>
-                        <li>• <b>exp(x)</b> atau <b>e^x</b> - Eksponensial</li>
-                    </ul>
+        <div class="header">
+            <h1 class="title"><span class="panda-icon">🐼</span> Limitra</h1>
+            <div class="subtitle">Kalkulator Matematika Super Akurat</div>
+        </div>
+        
+        <div class="card">
+            <div class="input-group">
+                <label class="label">Pilih Operasi</label>
+                <select class="select" id="operasi">
+                    <option value="limit">Limit</option>
+                    <option value="turunan">Turunan</option>
+                    <option value="integral">Integral</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label class="label">Fungsi f(x)</label>
+                <input class="input" type="text" id="fungsi" placeholder="contoh: x² + 2x + 1" value="x² + 1">
+                
+                <div class="symbols-help">
+                    <strong>Simbol yang didukung:</strong>
+                    <div class="symbol-row">
+                        <span>π (pi)</span>
+                        <span>° (derajat)</span>
+                        <span>∞ (tak hingga)</span>
+                    </div>
+                    <div class="symbol-row">
+                        <span>sin(x), cos(x), tan(x)</span>
+                        <span>log(x), ln(x)</span>
+                    </div>
                 </div>
-                <div>
-                    <h4>🎯 Nilai x</h4>
-                    <ul style="list-style: none; padding-left: 0;">
-                        <li>• <b>0</b> - Angka biasa</li>
-                        <li>• <b>0+</b> - Dari kanan</li>
-                        <li>• <b>0-</b> - Dari kiri</li>
-                        <li>• <b>infinity</b> - Tak hingga</li>
-                        <li>• <b>-infinity</b> - Min tak hingga</li>
-                    </ul>
+                
+                <div class="examples">
+                    <strong>Contoh variasi:</strong>
+                    <div class="example-item" onclick="document.getElementById('fungsi').value = 'x³ - 2x²'">x³ - 2x²</div>
+                    <div class="example-item" onclick="document.getElementById('fungsi').value = 'sin(x²) + π/2'">sin(x²) + π/2</div>
+                    <div class="example-item" onclick="document.getElementById('fungsi').value = 'tan(45°) + cos(π)'">tan(45°) + cos(π)</div>
+                    <div class="example-item" onclick="document.getElementById('fungsi').value = '2x + 3x² - 5'">2x + 3x² - 5</div>
                 </div>
             </div>
-        </div>
-
-        <!-- Interactive Examples -->
-        <div class="card">
-            <h3>🚀 Contoh Cepat</h3>
-            <p>Klik contoh untuk langsung mencoba:</p>
-            <div class="examples-grid">
-                {% for example in examples %}
-                <div class="example-card" onclick="loadExample({{ loop.index0 }})">
-                    <h4>{{ example.name }}</h4>
-                    <div class="math-expression">f(x) = {{ example.expr }}</div>
-                    <small><b>x → {{ example.xval }}</b></small>
-                </div>
-                {% endfor %}
+            
+            <div class="input-group" id="limitInput">
+                <label class="label">Mendekati</label>
+                <input class="input" type="text" id="pendekatan" placeholder="0, 2, ∞" value="0">
             </div>
+            
+            <div class="input-group hidden" id="integralInput">
+                <label class="label">Jenis Integral</label>
+                <select class="select" id="jenisIntegral">
+                    <option value="tak_tentu">Tak Tentu (+C)</option>
+                    <option value="tentu">Tentu (dengan batas)</option>
+                </select>
+            </div>
+            
+            <div class="input-group hidden" id="batasInput">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <label class="label">Batas Bawah</label>
+                        <input class="input" type="number" id="bawah" value="0">
+                    </div>
+                    <div>
+                        <label class="label">Batas Atas</label>
+                        <input class="input" type="number" id="atas" value="1">
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn-hitung" onclick="hitung()">Hitung Sekarang</button>
         </div>
-
-        <!-- Input Form -->
-        <div class="card">
-            <h3>🧩 Input Fungsi & Parameter</h3>
-            <form id="limitForm" class="input-group">
-                <div>
-                    <label>Fungsi pertama f(x) 🎯</label>
-                    <textarea name="expr1" placeholder="Contoh: sin(x)/x, √(x-2), (x²-1)/(x-1), x^2 + y^2 (3D)" required rows="2"></textarea>
-                </div>
-                
-                <div>
-                    <label>Fungsi kedua g(x) (opsional)</label>
-                    <textarea name="expr2" placeholder="Kosongkan jika hanya satu fungsi" rows="2"></textarea>
-                </div>
-                
-                <div>
-                    <label>Nilai x mendekati 🎯</label>
-                    <input type="text" name="xval" placeholder="Contoh: 0, 1, 0+, 2-, infinity" required>
-                </div>
-                
-                <div>
-                    <label>Arah pendekatan:</label>
-                    <select name="direction">
-                        <option value="both">🔄 Kedua arah</option>
-                        <option value="left">⬅️ Dari kiri</option>
-                        <option value="right">➡️ Dari kanan</option>
-                    </select>
-                </div>
-                
-                <button type="submit" class="btn">🧮 Hitung Limit</button>
-            </form>
+        
+        <div id="hasil" class="card hidden">
+            <div id="hasilContent"></div>
         </div>
-
-        <!-- Results Section -->
-        <div id="results"></div>
     </div>
 
     <script>
-        const examples = {{ examples|tojson }};
-        
-        function loadExample(index) {
-            const example = examples[index];
-            document.querySelector('textarea[name="expr1"]').value = example.expr;
-            document.querySelector('input[name="xval"]').value = example.xval;
-            showToast(`✅ Loaded: ${example.name}`, 'success');
-        }
-        
-        function showToast(message, type = 'success') {
-            const toast = document.createElement('div');
-            toast.className = `toast ${type}`;
-            toast.textContent = message;
-            document.body.appendChild(toast);
-            
-            setTimeout(() => {
-                toast.remove();
-            }, 3000);
-        }
-        
-        function showLoading() {
-            document.getElementById('results').innerHTML = `
-                <div class="loading">
-                    <div class="spinner"></div>
-                    <h3>🔄 Menghitung Limit & Membuat Visualisasi...</h3>
-                    <p>Harap tunggu, sistem sedang melakukan perhitungan dan rendering grafik</p>
-                </div>
-            `;
-        }
-        
-        function displayResults(data) {
-            let html = `
-                <div class="card">
-                    <h2 style="text-align: center; color: {{ colors.text }}; border-bottom: 2px solid {{ colors.accent }}; padding-bottom: 15px;">📊 HASIL PERHITUNGAN LIMIT</h2>
-                </div>
-            `;
-            
-            // Function 1 results
-            if (data.function1) {
-                const f1 = data.function1;
-                html += `
-                    <div class="card result-section">
-                        <h3><span class="function-badge function-1">f(x)</span> ${f1.display_expression}</h3>
-                        <div class="result-value">
-                            lim<sub>x→${document.querySelector('input[name="xval"]').value}</sub> f(x) = ${f1.limit}
-                        </div>
-                        
-                        ${f1.is_multivariable ? `
-                            <div class="multivariable-warning">
-                                🔍 <b>Fungsi 2 Variabel:</b> Analisis kontinuitas lebih kompleks untuk fungsi multivariabel
-                            </div>
-                        ` : ''}
-                        
-                        <h4>📈 Analisis Kontinuitas:</h4>
-                        <div class="continuity-steps">
-                            ${f1.continuity.steps.map(step => `<p style="margin: 10px 0;">${step}</p>`).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // Function 2 results
-            if (data.function2) {
-                const f2 = data.function2;
-                html += `
-                    <div class="card result-section">
-                        <h3><span class="function-badge function-2">g(x)</span> ${f2.display_expression}</h3>
-                        <div class="result-value">
-                            lim<sub>x→${document.querySelector('input[name="xval"]').value}</sub> g(x) = ${f2.limit}
-                        </div>
-                        
-                        ${f2.is_multivariable ? `
-                            <div class="multivariable-warning">
-                                🔍 <b>Fungsi 2 Variabel:</b> Analisis kontinuitas lebih kompleks
-                            </div>
-                        ` : ''}
-                        
-                        <h4>📈 Analisis Kontinuitas:</h4>
-                        <div class="continuity-steps">
-                            ${f2.continuity.steps.map(step => `<p style="margin: 10px 0;">${step}</p>`).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            // 2D Plot
-            if (data.plots && data.plots.plot_2d) {
-                html += `
-                    <div class="card">
-                        <h3 style="color: {{ colors.accent }}; border-bottom: 2px solid {{ colors.accent }}; padding-bottom: 10px;">📈 Visualisasi 2D - Grafik Fungsi</h3>
-                        <div class="plot-container">${data.plots.plot_2d}</div>
-                        <p style="text-align: center; margin-top: 10px; color: {{ colors.text }}80;">
-                            <small>Garis merah putus-putus menunjukkan titik limit x = ${document.querySelector('input[name="xval"]').value}</small>
-                        </p>
-                    </div>
-                `;
-            }
-            
-            // 3D Plot
-            if (data.plots && data.plots.plot_3d) {
-                html += `
-                    <div class="card">
-                        <h3 style="color: {{ colors.threed }}; border-bottom: 2px solid {{ colors.threed }}; padding-bottom: 10px;">🎨 Visualisasi 3D - Fungsi Multivariabel</h3>
-                        <div class="plot-container">${data.plots.plot_3d}</div>
-                        <p style="text-align: center; margin-top: 10px; color: {{ colors.text }}80;">
-                            <small>Drag untuk memutar, scroll untuk zoom. Tampilan 3D untuk fungsi dengan variabel x dan y</small>
-                        </p>
-                    </div>
-                `;
-            }
-            
-            // Action buttons
-            html += `
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0;">
-                    <button onclick="location.reload()" class="btn">🔄 Hitung Lagi</button>
-                    <button onclick="scrollToTop()" class="btn" style="background: {{ colors.secondary }};">⬆️ Ke Atas</button>
-                </div>
-            `;
-            
-            document.getElementById('results').innerHTML = html;
-        }
-        
-        function scrollToTop() {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-        
-        document.getElementById('limitForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(this);
-            const data = {
-                expr1: formData.get('expr1'),
-                expr2: formData.get('expr2'),
-                xval: formData.get('xval'),
-                direction: formData.get('direction')
+        function konversiKeSuperscript(teks) {
+            const superscriptMap = {
+                '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+                '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'
             };
             
-            // Validasi input
-            if (!data.expr1.trim()) {
-                showToast('❌ Masukkan fungsi pertama', 'error');
+            return teks.replace(/([a-zA-Z0-9\)])\^?(\d+)/g, function(match, base, power) {
+                const superscriptPower = power.split('').map(char => superscriptMap[char] || char).join('');
+                return base + superscriptPower;
+            });
+        }
+        
+        document.getElementById('fungsi').addEventListener('input', function(e) {
+            const converted = konversiKeSuperscript(e.target.value);
+            if (converted !== e.target.value) {
+                e.target.value = converted;
+            }
+        });
+
+        document.getElementById('operasi').addEventListener('change', function() {
+            const op = this.value;
+            document.getElementById('limitInput').classList.add('hidden');
+            document.getElementById('integralInput').classList.add('hidden');
+            document.getElementById('batasInput').classList.add('hidden');
+            
+            if (op === 'limit') {
+                document.getElementById('limitInput').classList.remove('hidden');
+            } else if (op === 'integral') {
+                document.getElementById('integralInput').classList.remove('hidden');
+                toggleBatasInput();
+            }
+        });
+        
+        document.getElementById('jenisIntegral').addEventListener('change', toggleBatasInput);
+        
+        function toggleBatasInput() {
+            const showBatas = document.getElementById('jenisIntegral').value === 'tentu';
+            document.getElementById('batasInput').classList.toggle('hidden', !showBatas);
+        }
+        
+        async function hitung() {
+            const op = document.getElementById('operasi').value;
+            const fungsi = document.getElementById('fungsi').value;
+            
+            if (!fungsi) {
+                tampilkanError('Masukkan fungsi dulu ya!');
                 return;
             }
             
-            if (!data.xval.trim()) {
-                showToast('❌ Masukkan nilai x', 'error');
-                return;
-            }
+            tampilkanLoading();
             
-            showLoading();
+            const data = { 
+                operasi: op, 
+                fungsi: fungsi 
+            };
+            
+            if (op === 'limit') {
+                data.pendekatan = document.getElementById('pendekatan').value;
+            }
+            if (op === 'integral' && document.getElementById('jenisIntegral').value === 'tentu') {
+                data.bawah = document.getElementById('bawah').value;
+                data.atas = document.getElementById('atas').value;
+            }
             
             try {
-                const response = await fetch('/calculate', {
+                const response = await fetch('/hitung', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
                 const result = await response.json();
                 
-                if (result.error) {
-                    showToast(`❌ ${result.error}`, 'error');
-                    document.getElementById('results').innerHTML = `
-                        <div class="card" style="text-align: center;">
-                            <h3 style="color: {{ colors.error }};">❌ Error</h3>
-                            <p>${result.error}</p>
-                            <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
-                        </div>
-                    `;
+                if (result.sukses) {
+                    tampilkanHasil(result);
                 } else {
-                    showToast('✅ Perhitungan selesai! Lihat hasil di bawah', 'success');
-                    displayResults(result);
+                    tampilkanError(result.error);
                 }
             } catch (error) {
-                showToast('❌ Error koneksi ke server', 'error');
-                document.getElementById('results').innerHTML = `
-                    <div class="card" style="text-align: center;">
-                        <h3 style="color: {{ colors.error }};">❌ Connection Error</h3>
-                        <p>Gagal terhubung ke server. Periksa koneksi internet Anda.</p>
-                        <button onclick="location.reload()" class="btn btn-danger">🔄 Coba Lagi</button>
-                    </div>
-                `;
+                tampilkanError('Error koneksi: ' + error.message);
             }
-        });
-
-        // Auto-focus pada input pertama
-        document.addEventListener('DOMContentLoaded', function() {
-            document.querySelector('textarea[name="expr1"]').focus();
-        });
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
-                document.getElementById('limitForm').dispatchEvent(new Event('submit'));
+        }
+        
+        function tampilkanHasil(result) {
+            const container = document.getElementById('hasilContent');
+            let html = '<div class="hasil-title">🐼 HASIL PERHITUNGAN</div>';
+            
+            const fungsiTampil = konversiKeSuperscript(result.fungsi);
+            const hasilTampil = konversiKeSuperscript(result.hasil);
+            
+            if (result.tipe === 'limit') {
+                html += `<div class="hasil-rumus">lim(${fungsiTampil}) = ${hasilTampil}</div>`;
+                html += `<div class="hasil-nilai">x → ${result.pendekatan} | Nilai: ${result.nilai}</div>`;
             }
-        });
+            else if (result.tipe === 'turunan') {
+                html += `<div class="hasil-rumus">Turunan dari ${fungsiTampil} = ${hasilTampil}</div>`;
+            }
+            else if (result.tipe === 'integral_tentu') {
+                html += `<div class="hasil-rumus">∫${fungsiTampil} dx = ${hasilTampil}</div>`;
+                html += `<div class="hasil-nilai">dari ${result.bawah} sampai ${result.atas} | Luas: ${result.nilai}</div>`;
+            }
+            else if (result.tipe === 'integral_tak_tentu') {
+                html += `<div class="hasil-rumus">∫${fungsiTampil} dx = ${hasilTampil} + C</div>`;
+            }
+            
+            html += `<div class="penjelasan">${result.penjelasan}</div>`;
+            container.innerHTML = html;
+            document.getElementById('hasil').classList.remove('hidden');
+            
+            document.getElementById('hasil').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }
+        
+        function tampilkanError(message) {
+            const container = document.getElementById('hasilContent');
+            container.innerHTML = `<div class="error">${message}</div>`;
+            document.getElementById('hasil').classList.remove('hidden');
+        }
+        
+        function tampilkanLoading() {
+            const container = document.getElementById('hasilContent');
+            container.innerHTML = '<div class="loading">Menghitung</div>';
+            document.getElementById('hasil').classList.remove('hidden');
+        }
     </script>
 </body>
-</html>
-
-
+                                                                  </html>
